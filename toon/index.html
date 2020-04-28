@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<title>three.js webgl - sea3d / cartoon</title>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+		<style>
+body { margin: 0px; background-color: #5a5a59; overflow: hidden; color:#FFF; font-family: "Lucida Console", Monaco, monospace; font-size: 14px; }
+#canvasTree { position: absolute; top:0; left:0; pointer-events:auto; width:100%; height:100%; }
+#debug { position:absolute; top:10px; left:10px; text-align:left; pointer-events:none; width:300px;}
+		</style>
+	</head>
+	<body>
+	<canvas id="canvasTree"></canvas>
+    <div id="debug"></div>
+		<script src="js/three.min.js"></script>
+		<script src="js/sea3d.min.js"></script>
+		<script src="js/OrbitControls.js"></script>
+		<script src="js/shaderHack.js"></script>
+		<script>
+
+            var d = document.getElementById('debug');
+            function debug ( s ) { d.innerHTML = s; };
+
+			var container, canvas;
+
+			var camera, scene, renderer, controls, textureLoader;
+
+			var outline, outlineIn;
+
+			var meshs = {};
+            var mats = {};
+
+			var loader;
+
+			
+
+			//
+			// SEA3D Loader
+			//
+
+			loader = new THREE.SEA3D();
+
+            loader.onDownloadProgress = function( e ) {
+
+                var pp = Math.floor((e.progress || 0) * 100) + "%";
+                debug( 'Loading 3D model : ' + pp );
+
+            };
+
+			loader.onComplete = function( e ) {
+
+                init();
+
+				var i = loader.meshes.length, mesh, out;
+
+				while(i--){
+
+					mesh = loader.meshes[i];
+					scene.add( mesh );
+
+                    meshs[mesh.name] = mesh;
+                    meshs[mesh.name].material = mats[mesh.name];
+
+                    debug( 'Model M-6k by Comrade1280' );
+                
+
+				}
+
+                // Initialize Three.JS
+
+                
+				animate();
+
+			};
+
+			loader.load( 'meck.sea' );
+
+			//
+
+			function init() {
+
+				canvas = document.getElementById( 'canvasTree' );
+
+				textureLoader = new THREE.TextureLoader();
+
+				shaderHack.init();
+
+				mats['cent_hull'] = new THREE.MeshStandardMaterial({ color:0xFF0000, metalness:0.8, roughness:0.8 });
+                mats['Object004'] = new THREE.MeshStandardMaterial({ color:0x333344,metalness:0.8, roughness:0.8 });
+                mats['Object003'] = new THREE.MeshStandardMaterial({ color:0x888899, metalness:0.8, roughness:0.8 });
+                mats['Object002'] = new THREE.MeshStandardMaterial({ color:0xAAAABB, metalness:0.8, roughness:0.8 });
+                mats['Object001'] = new THREE.MeshStandardMaterial({ color:0x80704a, metalness:0.3, roughness:0.8 });
+
+                outline = new THREE.ShaderMaterial({
+                    uniforms: {
+                        color: {type: 'c', value: new THREE.Color(0x000000) },
+                        power: {type: 'f', value: 0.3 },
+                    },
+                    vertexShader:[
+                        'uniform float power;',
+                        'void main(){',
+                        '    vec3 pos = position + normal * power;',
+                        '    gl_Position = projectionMatrix * modelViewMatrix * vec4( pos,1.0);',
+                        '}'
+                    ].join('\n'),
+                    fragmentShader:[
+                        'uniform vec3 color;',
+                        'void main(){',
+                        '    gl_FragColor = vec4( color, 1.0 );',
+                        '}'
+                    ].join('\n'),
+                    depthTest:false, 
+                    depthWrite:false,
+                    side:THREE.DoubleSide
+                });
+
+                outlineIn = new THREE.ShaderMaterial({
+                    uniforms: {
+                        color: {type: 'c', value: new THREE.Color(0x000000) },
+                        power: {type: 'f', value: 0.1 },
+                    },
+                    vertexShader:[
+                        'uniform float power;',
+                        'void main(){',
+                        '    vec3 pos = position + normal * power;',
+                        '    gl_Position = projectionMatrix * modelViewMatrix * vec4( pos,1.0);',
+                        '}'
+                    ].join('\n'),
+                    fragmentShader:[
+                        'uniform vec3 color;',
+                        'void main(){',
+                        '    gl_FragColor = vec4( color, 1.0 );',
+                        '}'
+                    ].join('\n'),
+                    side:THREE.BackSide
+                });
+
+
+				textureLoader.load( 'metal.jpg', textureComplete );
+
+				scene = new THREE.Scene();
+
+				camera = new THREE.PerspectiveCamera( 45, window.innerWidth / window.innerHeight, 1, 4000 );
+				camera.position.set( 0, 40, 150 );
+
+				controls = new THREE.OrbitControls( camera, canvas );
+				controls.target.set(0, 40, 0);
+
+				controls.update();
+
+				renderer = new THREE.WebGLRenderer({ canvas:canvas, antialias:true });
+				renderer.setPixelRatio( window.devicePixelRatio );
+				renderer.setSize( window.innerWidth, window.innerHeight );
+				renderer.setClearColor( 0x5a5a59, 1 );
+                renderer.autoClear = false;
+
+				renderer.gammaInput = true;
+                renderer.gammaOutput = true;
+
+                renderer.toneMapping = THREE.Uncharted2ToneMapping;
+                renderer.toneMappingExposure = 1.5;
+                renderer.toneMappingWhitePoint = 10;
+
+				// extra lights
+
+				var light = new THREE.SpotLight( 0xFFFFEE, 0.5, 0, Math.PI/2, 1 );
+		        light.position.set(100,100,300);
+		        light.lookAt(new THREE.Vector3(0,40,0));
+		        scene.add( light );
+
+				var pointLight = new THREE.PointLight( 0x0044AA, 1 );
+				scene.add( pointLight );
+
+				pointLight.position.set(200,300, 100)
+
+				//scene.add( new THREE.AmbientLight( 0x333333 ) );
+
+				// events
+
+				window.addEventListener( 'resize', onWindowResize, false );
+
+			}
+
+			function textureComplete( tex ){
+
+				var name = tex.image.currentSrc.substring(tex.image.currentSrc.lastIndexOf('/')+1, tex.image.currentSrc.lastIndexOf('.'));
+                tex.name = name;
+
+                if(name === 'metal'){ 
+			        tex.mapping = THREE.SphericalReflectionMapping;
+
+                    for(var m in mats){
+                        mats[m].envMap = tex;
+                        mats[m].needsUpdate = true;
+                    }
+			    }
+
+			}
+
+			function onWindowResize() {
+
+				camera.aspect = window.innerWidth / window.innerHeight;
+				camera.updateProjectionMatrix();
+				renderer.setSize( window.innerWidth, window.innerHeight );
+
+			}
+
+			//
+
+			var clock = new THREE.Clock();
+
+			function animate() {
+
+				requestAnimationFrame( animate );
+
+                renderer.clear();
+
+                scene.overrideMaterial = outline;
+
+                renderer.render( scene, camera );
+
+                scene.overrideMaterial = outlineIn;
+
+                renderer.render( scene, camera );
+
+                scene.overrideMaterial = null;
+
+				renderer.render( scene, camera );
+
+			}
+		</script>
+	</body>
+</html>
